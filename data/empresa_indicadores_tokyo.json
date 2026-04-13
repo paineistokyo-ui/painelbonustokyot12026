@@ -1,0 +1,86 @@
+{
+  "JANEIRO": {
+    "financeiro": true,
+    "qualidade": true,
+    "organizacao_da_loja": true,
+    "Vistorias de 190,00": true,
+    "Liderança & Organização": true,
+    "producao_por_cidade": {
+      "SANTA INÊS": false,
+      "BARRA DO CORDA": false,
+      "SÃO JOÃO DOS PATOS": false,
+      "CHAPADINHA": false,
+      "SÃO JOSÉ DE RIBAMAR": false
+    },
+    "qualidade_total_por_cidade": {
+      "SANTA INÊS": 0.039,
+      "BARRA DO CORDA": 0.046,
+      "SÃO JOÃO DOS PATOS": 0.026,
+      "CHAPADINHA": 0.073,
+      "SÃO JOSÉ DE RIBAMAR": 0.048
+    },
+    "qualidade_gg_por_cidade": {
+      "SANTA INÊS": 0.013,
+      "BARRA DO CORDA": 0.014,
+      "SÃO JOÃO DOS PATOS": 0.02,
+      "CHAPADINHA": 0.032,
+      "SÃO JOSÉ DE RIBAMAR": 0.015
+    }
+  },
+  "FEVEREIRO": {
+    "financeiro": true,
+    "qualidade": true,
+    "organizacao_da_loja": true,
+    "Vistorias de 190,00": true,
+    "Liderança & Organização": true,
+    "producao_por_cidade": {
+      "SANTA INÊS": false,
+      "BARRA DO CORDA": false,
+      "SÃO JOÃO DOS PATOS": false,
+      "CHAPADINHA": false,
+      "SÃO JOSÉ DE RIBAMAR": false
+    },
+    "qualidade_total_por_cidade": {
+      "SANTA INÊS": 0.05,
+      "BARRA DO CORDA": 0.034,
+      "SÃO JOÃO DOS PATOS": 0.027,
+      "CHAPADINHA": 0.044,
+      "SÃO JOSÉ DE RIBAMAR": 0.041
+    },
+    "qualidade_gg_por_cidade": {
+      "SANTA INÊS": 0.019,
+      "BARRA DO CORDA": 0.012,
+      "SÃO JOÃO DOS PATOS": 0.006,
+      "CHAPADINHA": 0.013,
+      "SÃO JOSÉ DE RIBAMAR": 0.012
+    }
+  },
+  "MARÇO": {
+    "financeiro": true,
+    "qualidade": true,
+    "organizacao_da_loja": true,
+    "Vistorias de 190,00": false,
+    "Liderança & Organização": true,
+    "producao_por_cidade": {
+      "SANTA INÊS": false,
+      "BARRA DO CORDA": false,
+      "SÃO JOÃO DOS PATOS": false,
+      "CHAPADINHA": false,
+      "SÃO JOSÉ DE RIBAMAR": false
+    },
+    "qualidade_total_por_cidade": {
+      "SANTA INÊS": 0.032,
+      "BARRA DO CORDA": 0.029,
+      "SÃO JOÃO DOS PATOS": 0.028,
+      "CHAPADINHA": 0.042,
+      "SÃO JOSÉ DE RIBAMAR": 0.029
+    },
+    "qualidade_gg_por_cidade": {
+      "SANTA INÊS": 0.012,
+      "BARRA DO CORDA": 0.012,
+      "SÃO JOÃO DOS PATOS": 0.013,
+      "CHAPADINHA": 0.014,
+      "SÃO JOSÉ DE RIBAMAR": 0.011
+    }
+  }
+}
