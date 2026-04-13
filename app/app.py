@@ -32,12 +32,6 @@ def texto_obs(valor):
     s = str(valor).strip()
     return "" if s.lower() in ["none", "nan", ""] else s
 
-def int_safe(x):
-    try:
-        return int(float(x))
-    except Exception:
-        return 0
-
 def pct_safe(x):
     try:
         x = float(x)
@@ -73,7 +67,6 @@ def extrair_cidade_do_item(item: str, cidades_norm: list) -> str | None:
     return None
 
 # ===================== PARÂMETROS =====================
-QUALIDADE_GESTAO_METODO = "por_cidade"
 META_ERROS_TOTAIS_GESTAO = 0.035
 META_ERROS_GG_GESTAO = 0.015
 
@@ -91,7 +84,6 @@ _SUPERVISORES_CIDADES_RAW = {
 }
 
 _GERENTES_CIDADES_RAW = {
-    # ajuste estes nomes/cidades conforme sua operação quando houver gerente no arquivo
     "LEONARDO DE SOUZA": {
         "SANTA INÊS": 1/5,
         "SÃO JOSÉ DE RIBAMAR": 1/5,
@@ -156,64 +148,6 @@ def limites_qualidade(cidade: str):
     if cfg:
         return float(cfg["total"]), float(cfg["graves"])
     return LIMITE_TOTAL_PADRAO, LIMITE_GRAVES_PADRAO
-
-# ===================== REGRAS QUALIDADE GESTÃO =====================
-def calc_qualidade_gestao(
-    cidades_resp: list,
-    total_por_cidade: dict,
-    gg_por_cidade: dict,
-    meta_total: float = META_ERROS_TOTAIS_GESTAO,
-    meta_gg: float = META_ERROS_GG_GESTAO,
-    metodo: str = QUALIDADE_GESTAO_METODO
-):
-    detalhes = []
-
-    cidades_total = [c for c in cidades_resp if c in total_por_cidade]
-    cidades_gg = [c for c in cidades_resp if c in gg_por_cidade]
-
-    if metodo == "media_simples":
-        vals_total = [float(total_por_cidade[c]) for c in cidades_total]
-        vals_gg = [float(gg_por_cidade[c]) for c in cidades_gg]
-        if not vals_total and not vals_gg:
-            return 0.0, 0.0, ["Qualidade (gestão) — sem dados por cidade no JSON do mês"]
-
-        avg_total = (sum(vals_total) / len(vals_total)) if vals_total else None
-        avg_gg = (sum(vals_gg) / len(vals_gg)) if vals_gg else None
-
-        frac_total = 1.0 if (avg_total is not None and avg_total <= meta_total) else 0.0
-        frac_gg = 1.0 if (avg_gg is not None and avg_gg <= meta_gg) else 0.0
-
-        if frac_total < 1.0:
-            detalhes.append(f"Qualidade — Erros Totais: média {fmt_pct(avg_total)} (meta {fmt_pct(meta_total)})")
-        if frac_gg < 1.0:
-            detalhes.append(f"Qualidade — Erros GG: média {fmt_pct(avg_gg)} (meta {fmt_pct(meta_gg)})")
-
-        return frac_total, frac_gg, detalhes
-
-    if not cidades_total and not cidades_gg:
-        return 0.0, 0.0, ["Qualidade (gestão) — sem dados por cidade no JSON do mês"]
-
-    if cidades_total:
-        ok_total = [c for c in cidades_total if float(total_por_cidade[c]) <= meta_total]
-        nok_total = [c for c in cidades_total if c not in ok_total]
-        frac_total = len(ok_total) / len(cidades_total)
-        if nok_total:
-            detalhes.append("Qualidade — Erros Totais (não bateu): " + ", ".join([c.title() for c in nok_total]))
-    else:
-        frac_total = 0.0
-        detalhes.append("Qualidade — Erros Totais: sem dados por cidade")
-
-    if cidades_gg:
-        ok_gg = [c for c in cidades_gg if float(gg_por_cidade[c]) <= meta_gg]
-        nok_gg = [c for c in cidades_gg if c not in ok_gg]
-        frac_gg = len(ok_gg) / len(cidades_gg)
-        if nok_gg:
-            detalhes.append("Qualidade — Erros GG (não bateu): " + ", ".join([c.title() for c in nok_gg]))
-    else:
-        frac_gg = 0.0
-        detalhes.append("Qualidade — Erros GG: sem dados por cidade")
-
-    return float(frac_total), float(frac_gg), detalhes
 
 def elegivel(valor_meta, obs):
     obs_u = up(obs)
@@ -438,6 +372,39 @@ def avaliar_indicadores_mes(row, nome_mes):
             entries.append(make_loss_entry(
                 ind_key="LUCRATIVIDADE",
                 label="Lucratividade",
+                parcela=parcela,
+                perdeu=perdeu
+            ))
+            continue
+
+        # ------------------- VISTORIAS DE 190,00 -------------------
+        if item_norm == up("Vistorias de 190,00"):
+            perdeu = not flag("Vistorias de 190,00", True)
+            entries.append(make_loss_entry(
+                ind_key="VISTORIAS_190",
+                label="Vistorias de 190,00",
+                parcela=parcela,
+                perdeu=perdeu
+            ))
+            continue
+
+        # ------------------- PESQUISA DE SATISFAÇÃO -------------------
+        if item_norm == up("Pesquisa de Satisfação"):
+            perdeu = not flag("qualidade", True)
+            entries.append(make_loss_entry(
+                ind_key="PESQUISA_SATISFACAO",
+                label="Pesquisa de Satisfação",
+                parcela=parcela,
+                perdeu=perdeu
+            ))
+            continue
+
+        # ------------------- RECURSOS HUMANOS -------------------
+        if item_norm == up("Recursos Humanos"):
+            perdeu = False
+            entries.append(make_loss_entry(
+                ind_key="RECURSOS_HUMANOS",
+                label="Recursos Humanos",
                 parcela=parcela,
                 perdeu=perdeu
             ))
