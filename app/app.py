@@ -3,7 +3,8 @@ import streamlit as st
 import pandas as pd
 import json
 from pathlib import Path
-import unicodedata, re
+import unicodedata
+import re
 
 # ===================== CONFIG BÁSICA =====================
 st.set_page_config(page_title="Painel de Bônus - TOKYO (T4)", layout="wide")
@@ -88,9 +89,26 @@ _SUPERVISORES_CIDADES_RAW = {
         "SÃO JOSÉ DE RIBAMAR": 1/2
     }
 }
+
+_GERENTES_CIDADES_RAW = {
+    # ajuste estes nomes/cidades conforme sua operação quando houver gerente no arquivo
+    "LEONARDO DE SOUZA": {
+        "SANTA INÊS": 1/5,
+        "SÃO JOSÉ DE RIBAMAR": 1/5,
+        "CHAPADINHA": 1/5,
+        "BARRA DO CORDA": 1/5,
+        "SÃO JOÃO DOS PATOS": 1/5
+    }
+}
+
 SUPERVISORES_CIDADES = {
     norm_txt(nome): {norm_txt(cidade): float(peso) for cidade, peso in cidades.items()}
     for nome, cidades in _SUPERVISORES_CIDADES_RAW.items()
+}
+
+GERENTES_CIDADES = {
+    norm_txt(nome): {norm_txt(cidade): float(peso) for cidade, peso in cidades.items()}
+    for nome, cidades in _GERENTES_CIDADES_RAW.items()
 }
 
 # ===================== CARREGAMENTO ======================
@@ -113,10 +131,12 @@ def ler_planilha(mes: str) -> pd.DataFrame:
     base = DATA_DIR / "RESUMO PARA PAINEL - TOKYO.xlsx"
     if base.exists():
         return pd.read_excel(base, sheet_name=mes)
+
     candidatos = list(DATA_DIR.glob("RESUMO PARA PAINEL - TOKYO*.xls*"))
     if not candidatos:
         st.error("Planilha não encontrada na pasta data/ (RESUMO PARA PAINEL - TOKYO.xlsx)")
         st.stop()
+
     return pd.read_excel(sorted(candidatos)[0], sheet_name=mes)
 
 # ===================== REGRAS QUALIDADE VISTORIADOR =====================
@@ -138,12 +158,14 @@ def limites_qualidade(cidade: str):
     return LIMITE_TOTAL_PADRAO, LIMITE_GRAVES_PADRAO
 
 # ===================== REGRAS QUALIDADE GESTÃO =====================
-def calc_qualidade_gestao(cidades_resp: list,
-                          total_por_cidade: dict,
-                          gg_por_cidade: dict,
-                          meta_total: float = META_ERROS_TOTAIS_GESTAO,
-                          meta_gg: float = META_ERROS_GG_GESTAO,
-                          metodo: str = QUALIDADE_GESTAO_METODO):
+def calc_qualidade_gestao(
+    cidades_resp: list,
+    total_por_cidade: dict,
+    gg_por_cidade: dict,
+    meta_total: float = META_ERROS_TOTAIS_GESTAO,
+    meta_gg: float = META_ERROS_GG_GESTAO,
+    metodo: str = QUALIDADE_GESTAO_METODO
+):
     detalhes = []
 
     cidades_total = [c for c in cidades_resp if c in total_por_cidade]
@@ -218,13 +240,35 @@ def make_loss_entry(ind_key, label, parcela, perdeu, detalhe=""):
         "detalhe": detalhe or ""
     }
 
+def cidades_responsabilidade(nome: str, func: str, cidade_padrao: str = "", cidades_disponiveis=None):
+    nome_n = up(nome)
+    func_n = up(func)
+    cidade_n = up(cidade_padrao)
+
+    if func_n == up("SUPERVISOR") and nome_n in SUPERVISORES_CIDADES:
+        return SUPERVISORES_CIDADES[nome_n]
+
+    if func_n == up("GERENTE") and nome_n in GERENTES_CIDADES:
+        return GERENTES_CIDADES[nome_n]
+
+    if cidade_n:
+        return {cidade_n: 1.0}
+
+    cidades_disponiveis = cidades_disponiveis or []
+    if cidades_disponiveis:
+        peso = 1 / len(cidades_disponiveis)
+        return {c: peso for c in cidades_disponiveis}
+
+    return {}
+
 # ===================== AVALIAÇÃO DOS INDICADORES DO MÊS =====================
 def avaliar_indicadores_mes(row, nome_mes):
     ind_mes_raw = INDICADORES[nome_mes]
 
-    ind_flags = {up(k): v for k, v in ind_mes_raw.items() if k not in [
-        "producao_por_cidade", "qualidade_total_por_cidade", "qualidade_gg_por_cidade"
-    ]}
+    ind_flags = {
+        up(k): v for k, v in ind_mes_raw.items()
+        if k not in ["producao_por_cidade", "qualidade_total_por_cidade", "qualidade_gg_por_cidade"]
+    }
     prod_cid_norm = {up(k): bool(v) for k, v in ind_mes_raw.get("producao_por_cidade", {}).items()}
     qual_total_cid_norm = {up(k): pct_safe(v) for k, v in ind_mes_raw.get("qualidade_total_por_cidade", {}).items()}
     qual_gg_cid_norm = {up(k): pct_safe(v) for k, v in ind_mes_raw.get("qualidade_gg_por_cidade", {}).items()}
@@ -274,11 +318,18 @@ def avaliar_indicadores_mes(row, nome_mes):
                 ))
                 continue
 
-            if func in [up("SUPERVISOR"), up("GERENTE")] and nome in SUPERVISORES_CIDADES:
-                base_soma = sum(SUPERVISORES_CIDADES[nome].values()) or 1.0
-                for cid_norm, w in SUPERVISORES_CIDADES[nome].items():
+            mapa_resp = cidades_responsabilidade(
+                nome=nome,
+                func=func,
+                cidade_padrao=cidade,
+                cidades_disponiveis=list(prod_cid_norm.keys())
+            )
+
+            if mapa_resp:
+                soma_pesos = sum(mapa_resp.values()) or 1.0
+                for cid_norm, w in mapa_resp.items():
                     bateu = prod_cid_norm.get(cid_norm, True)
-                    fatia = parcela * (float(w) / base_soma)
+                    fatia = parcela * (float(w) / soma_pesos)
                     entries.append(make_loss_entry(
                         ind_key=f"PRODUCAO::{cid_norm}",
                         label=f"Produção – {cid_norm.title()}",
@@ -299,7 +350,7 @@ def avaliar_indicadores_mes(row, nome_mes):
 
         # ------------------- QUALIDADE -------------------
         if item_norm == up("QUALIDADE"):
-            # Vistoriador: 20% dividido em 10% totais + 10% graves
+            # VISTORIADOR: divide a parcela de qualidade em 50% total e 50% gg
             if func == up("VISTORIADOR"):
                 metade = parcela * 0.5
                 et_frac = pct_safe(row.get("ERROS TOTAL", 0))
@@ -328,34 +379,40 @@ def avaliar_indicadores_mes(row, nome_mes):
                 ))
                 continue
 
-            # Supervisor/Gerente: 10% total + 10% gg, proporcional por cidade
+            # SUPERVISOR / GERENTE: rateio por cidade de responsabilidade
             if func in [up("SUPERVISOR"), up("GERENTE")]:
-                cidades_resp = list(SUPERVISORES_CIDADES.get(nome, {}).keys())
-                if not cidades_resp:
-                    cidades_resp = list(qual_total_cid_norm.keys()) or ([cidade] if cidade else [])
+                mapa_resp = cidades_responsabilidade(
+                    nome=nome,
+                    func=func,
+                    cidade_padrao=cidade,
+                    cidades_disponiveis=list(qual_total_cid_norm.keys())
+                )
 
                 metade = parcela * 0.5
+                soma_pesos = sum(mapa_resp.values()) or 1.0
 
-                for cid_resp in cidades_resp:
-                    qtd_total = len(cidades_resp) if cidades_resp else 1
-                    frac_parte = 1 / qtd_total
+                for cid_resp, peso_resp in mapa_resp.items():
+                    parcela_cidade = float(peso_resp) / soma_pesos
 
-                    perdeu_total = float(qual_total_cid_norm.get(cid_resp, 999)) > META_ERROS_TOTAIS_GESTAO
-                    perdeu_gg = float(qual_gg_cid_norm.get(cid_resp, 999)) > META_ERROS_GG_GESTAO
+                    val_total = qual_total_cid_norm.get(cid_resp)
+                    val_gg = qual_gg_cid_norm.get(cid_resp)
+
+                    perdeu_total = True if val_total is None else float(val_total) > META_ERROS_TOTAIS_GESTAO
+                    perdeu_gg = True if val_gg is None else float(val_gg) > META_ERROS_GG_GESTAO
 
                     entries.append(make_loss_entry(
                         ind_key=f"QUALIDADE_TOTAL::{cid_resp}",
-                        label=f"Qualidade Totais – {cid_resp.title()}",
-                        parcela=metade * frac_parte,
+                        label=f"Qualidade – Erros Totais – {cid_resp.title()}",
+                        parcela=metade * parcela_cidade,
                         perdeu=perdeu_total,
-                        detalhe=f"Erros Totais {fmt_pct(qual_total_cid_norm.get(cid_resp, 0))} (meta {fmt_pct(META_ERROS_TOTAIS_GESTAO)})" if perdeu_total else ""
+                        detalhe=f"Erros Totais {fmt_pct(val_total)} (meta {fmt_pct(META_ERROS_TOTAIS_GESTAO)})" if perdeu_total and val_total is not None else ""
                     ))
                     entries.append(make_loss_entry(
                         ind_key=f"QUALIDADE_GG::{cid_resp}",
-                        label=f"Qualidade GG – {cid_resp.title()}",
-                        parcela=metade * frac_parte,
+                        label=f"Qualidade – Erros Graves e Gravíssimos – {cid_resp.title()}",
+                        parcela=metade * parcela_cidade,
                         perdeu=perdeu_gg,
-                        detalhe=f"Erros GG {fmt_pct(qual_gg_cid_norm.get(cid_resp, 0))} (meta {fmt_pct(META_ERROS_GG_GESTAO)})" if perdeu_gg else ""
+                        detalhe=f"Erros GG {fmt_pct(val_gg)} (meta {fmt_pct(META_ERROS_GG_GESTAO)})" if perdeu_gg and val_gg is not None else ""
                     ))
                 continue
 
@@ -453,7 +510,6 @@ def aplicar_regra_dois_meses(df_mes: pd.DataFrame, nome_mes: str, historico_stre
         base = avaliar_indicadores_mes(row, nome_mes)
         pk = pessoa_key(row)
 
-        # se não for elegível, mantém como está e não conta streak
         if base["_badge"]:
             linhas.append(pd.concat([row, pd.Series(base)]))
             continue
